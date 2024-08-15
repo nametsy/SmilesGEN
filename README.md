@@ -1,0 +1,2 @@
+# SmilesGEN
+a drug genrater
