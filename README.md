@@ -1,8 +1,10 @@
 # SmilesGEN
 
+![](D:\OneDrive\Desktop\6\SmilesGEN\framework.png)
+
 We propose SmilesGEN, a model that can generate drugs based on gene expression profiles.
 You can use this model to generate drug like molecules using the required expression profile.
-The following is a detailed introduction to the model
+The following is a detailed introduction to the model.
 
 ## Environment Installation
 
