@@ -1,6 +1,8 @@
 # SmilesGEN
 
-
+We propose SmilesGEN, a model that can generate drugs based on gene expression profiles.
+You can use this model to generate drug like molecules using the required expression profile.
+The following is a detailed introduction to the model
 
 ## Environment Installation
 
@@ -33,9 +35,7 @@ $ pip install -r requirements.txt
 - trainer.py
 
 - utils.py
-
-  
-
+We collected the drug-treated and baseline (untreated) expression profiles from the L1000 datase.
 ## Experimental Reproduction
 
   - **Train**: 
