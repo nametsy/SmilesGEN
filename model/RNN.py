@@ -5,6 +5,7 @@ import torch.nn.functional as F
 
 
 # ============================================================================
+# Define EncoderRNN: encode a batch of SMILES to Z
 class EncoderRNN(nn.Module):
     def __init__(
             self,
@@ -41,7 +42,7 @@ class EncoderRNN(nn.Module):
             self.emb_size,
             self.hidden_size,
             num_layers=self.num_layers,
-            # dropout=0.1,
+            dropout=0.1,
             bidirectional=self.bidirectional,
             batch_first=True,
             dtype=dtype,
@@ -52,11 +53,13 @@ class EncoderRNN(nn.Module):
 
     def forward(self, inputs):
 
+
         embed = self.embedding(inputs)
 
         output, hidden = self.gru(
             embed, None
         )
+
         output = output[:, -1, :].squeeze(1)
 
         if self.bidirectional:
@@ -65,7 +68,7 @@ class EncoderRNN(nn.Module):
             )
         else:
             output = output[:, : self.hidden_size]
-        # 修改后
+
 
         mu = self.latent_mean(output)
         logvar = self.latent_logvar(output)
@@ -74,6 +77,7 @@ class EncoderRNN(nn.Module):
 
 
 # =============================================
+#  Define DecoderRNN: decode Z to SMILES
 class DecoderRNN(nn.Module):
 
     def __init__(
@@ -95,6 +99,7 @@ class DecoderRNN(nn.Module):
         self.emb_size = emb_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
+
         self.input_size = latent_size * 2
 
         self.embedding = nn.Embedding(self.vocab_size, self.emb_size, dtype=dtype)
@@ -114,23 +119,28 @@ class DecoderRNN(nn.Module):
 
         model_random_state = np.random.RandomState(1988)
         batch_size, n_steps = inputs.size()
+
         outputs = torch.zeros(batch_size, n_steps, self.vocab_size).to(inputs.device)
+
         input = (
                 torch.ones([batch_size, 1], dtype=torch.int32)
                 * self.tokenizer.char_to_int[self.start]
         )
+
         input = input.to(inputs.device)
 
         if condition is not None:
 
             decode_embed = torch.cat([z, condition], dim=1)
         else:
+
+
             decode_embed = torch.cat([z, z], dim=1)
+
 
         hidden = (
             self.i2h(decode_embed).unsqueeze(0).repeat(self.num_layers, 1, 1)
         )
-
         for i in range(n_steps):
             output, hidden = self.step(
                 decode_embed, input, hidden
@@ -142,6 +152,7 @@ class DecoderRNN(nn.Module):
                 input = inputs[:, i]
             else:
                 input = torch.multinomial(torch.exp(output), 1)
+
             if input.dim() == 0:
                 input = input.unsqueeze(0)
 
@@ -151,15 +162,18 @@ class DecoderRNN(nn.Module):
 
     def step(self, decode_embed, input, hidden):
 
-        input = self.embedding(input).squeeze()
+        input = self.embedding(input).squeeze()  # [batch_size, emb_size]
+
         input = torch.cat(
             (input, decode_embed), 1
         )
         input = input.unsqueeze(1)
+
         output, hidden = self.gru(
             input, hidden
         )
         output = output.squeeze(1)
+
         output = torch.cat(
             (output, decode_embed), 1
         )
@@ -169,6 +183,7 @@ class DecoderRNN(nn.Module):
 
 
 # =============================================
+# Define SmilesVAE
 class RNNSmilesVAE(nn.Module):
 
     def __init__(self, encoder, decoder):
@@ -179,7 +194,6 @@ class RNNSmilesVAE(nn.Module):
         self.criterion = nn.CrossEntropyLoss()
 
     def reparameterize(self, mu, logvar):
-
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
 
@@ -187,10 +201,11 @@ class RNNSmilesVAE(nn.Module):
 
     def encode(self, inputs):
 
-        # 修改后
+
         self.mu, self.logvar = self.encoder(inputs)
+
         z = self.reparameterize(self.mu, self.logvar)
-        return z,self.mu,self.logvar
+        return z, self.mu, self.logvar
 
     def decode(self, inputs, latent_smile, latent_gene, temperature):
 
@@ -199,8 +214,7 @@ class RNNSmilesVAE(nn.Module):
 
     def forward(self, inputs, condition, temperature):
 
-        # 修改后
-        latent_smile,_,_ = self.encode(inputs)
+        latent_smile, _, _ = self.encode(inputs)
 
         decoded = self.decode(inputs, latent_smile, condition, temperature)
 
@@ -208,9 +222,14 @@ class RNNSmilesVAE(nn.Module):
 
     def joint_loss(self, decoded, targets, alpha=0.5, beta=1):
 
+
         decoded = decoded.permute(0, 2, 1)
+
+
         rec_loss = self.criterion(decoded, targets)
+
         kld_loss = -0.5 * torch.sum(1 + self.logvar - self.mu.pow(2) - self.logvar.exp())
+
         joint_loss = alpha * rec_loss + (1 - alpha) * beta * kld_loss
 
         return joint_loss, rec_loss, kld_loss
@@ -218,19 +237,23 @@ class RNNSmilesVAE(nn.Module):
     def generation(self, latent_smile: torch.Tensor, max_len, tokenizer, condition=None):
 
         batch_size = latent_smile.size(0)
+
         generated_smiles_tokens = torch.zeros(batch_size, max_len).to(latent_smile.device)
-        input = (
+
+        inputs = (
                 torch.ones([batch_size, 1], dtype=torch.int32)
                 * tokenizer.char_to_int[tokenizer.start]
-        )  # [batch_size, 1]
-        input = input.to(latent_smile.device)
+        )
+        inputs = inputs.to(latent_smile.device)
 
         if condition is not None:
 
             decode_embed = torch.cat([latent_smile, condition], 1)
         else:
 
-            decode_embed = torch.cat([latent_smile, latent_smile], 1)
+            rand_z = torch.randn(latent_smile.size(0), latent_smile.size(1)).to(latent_smile.device)
+            decode_embed = torch.cat([rand_z, latent_smile], 1)
+
         hidden = (
             self.decoder.i2h(decode_embed)
             .unsqueeze(0)
@@ -239,11 +262,12 @@ class RNNSmilesVAE(nn.Module):
 
         for i in range(max_len):
             output, hidden = self.decoder.step(
-                decode_embed, input, hidden
+                decode_embed, inputs, hidden
             )
-            output = F.softmax(output, dim=1)
-            input = torch.multinomial(output, 1)
-            generated_smiles_tokens[:, i] = input.squeeze(1)
+            output = torch.exp(output)
+
+            inputs = torch.multinomial(output, 1)
+            generated_smiles_tokens[:, i] = inputs.squeeze(1)
 
         return generated_smiles_tokens
 
