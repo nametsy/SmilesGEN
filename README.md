@@ -3,7 +3,7 @@
 ![](https://github.com/nametsy/SmilesGEN/blob/main/framework.png)
 
 We propose SmilesGEN, a model that can generate drugs based on gene expression profiles.
-You can use this model to generate drug like molecules using the required expression profile.
+You can use this model to generate and optimize drug like molecules using the required expression profile.
 The following is a detailed introduction to the model:
 
 ## Environment Installation
@@ -32,6 +32,8 @@ $ pip install -r requirements.txt
 
 - requirements.py
 
+- MolecularOptimization.py
+  
 - tokenizer.py
 
 - trainer.py
@@ -54,7 +56,13 @@ $ python main.py --use_seed --generation --cell_name=MCF7 --protein_name=AKT1
 
   - **STEP 3**: Evaluate
 
+  ```
+$ python main.py --use_seed --generation --cell_name=MCF7 --protein_name=AKT1
+  ```
+
+  - **STEP 4**: Molecular Optimization
+
   ```  
-$ python main.py --cell_name=MCF7 --protein_name=AKT1 --calculate_tanimoto
+$ pythonMolecularOptimization.py --cell_name=MCF7 --protein_name=AKT1
   ```
 
