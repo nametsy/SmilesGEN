@@ -39,7 +39,7 @@ $ pip install -r requirements.txt
 - trainer.py
 
 - utils.py
-- We collected the drug-treated and baseline (untreated) expression profiles from the L1000 datase(https://clue.io/data/CMap2020#LINCS2020).Obtaining molecular data from https://pubchem.ncbi.nlm.nih.gov/.obtaining ligands from DTC(https://drugtargetcommons.fimm.fi/).You can use main.py to generate Drug-like molecules.
+- We collected the drug-treated and baseline (untreated) expression profiles from the L1000 datase(https://clue.io/data/CMap2020#LINCS2020). Obtaining molecular data from https://pubchem.ncbi.nlm.nih.gov/.   Obtaining ligands from DTC(https://drugtargetcommons.fimm.fi/).  You can use main.py to generate Drug-like molecules.
 ## Experimental Reproduction
 
   - **Train**: 
