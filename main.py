@@ -1,23 +1,46 @@
 import torch.nn as nn
 from trainer import Trainer
+
 from utils import *
 from tokenizer import vocabulary
-from dataset import load_smiles_data, load_test_gene_data
+from dataset import load_smiles_data, load_test_gene_data,pre_load_smiles_data
 from model import create_smiles_model, create_optimizer, GeneVAE
 from generation import generation
 from evaluation import evaluation
 import argparse
 import os
 if __name__ == '__main__':
+    # file_name
+    i = "mcf7_100_500"
 
-    file_path = os.path.join("results/MCF7/")
-    a = "AKT1"
+    cell_name = "MCF7"
+    protein_list = ["AKT1", "AKT2", "AURKB", "CTSK",
+                    "EGFR", "HDAC1", "MTOR", "PIK3CA",
+                    "SMAD3", "TP53",
+                    "TNBC", "RC", "LUAD",
+                    "A1NYA", "A1NYB", "A1QB",
+                    "A2NYA", "A2NYB", "A2QB"]
+    a = protein_list[0]
+    # smile,gene,smile
+
     lr_lst = [5e-4, 1e-4, 1e-4]
     # smile,SmileGen
-    epoch_lst = [100, 500]
+    epoch_lst = [100, 200]
+    # python main.py --pre_train_smiles_vae --train --result_file breast_100_500_1 --cell_name breast --smiles_epochs 100 --train_epochs 500
+
+    # 训练 python main.py --pre_train_smiles_vae --train --result_file 1_MCF7 --protein_name AKT1 --cell_name MCF7 --smiles_epochs 100 --train_epochs 200
 
     parser = argparse.ArgumentParser(description='SmilesGEN parse')
+
+    parser.add_argument("--result_file", type=str, default="123",
+                        help="Result file name")
+
+    file_path = os.path.join(f"results/{cell_name}/", str(i))
     parser.add_argument("--use_seed", action="store_true",
+                        help="Apply seed for reproduce experimental results")
+    parser.add_argument("--use_all", action="store_true",
+                        help="Apply seed for reproduce experimental results")
+    parser.add_argument("--just_cal", action="store_true",
                         help="Apply seed for reproduce experimental results")
     parser.add_argument("--cell_name", type=str, default="MCF7",
                         help="Cell name of LINCS files, e.g., mcf7")
@@ -28,6 +51,7 @@ if __name__ == '__main__':
     parser.add_argument("--smiles_dropout", type=float, default=0.1,
                         help="Dropout rate for SmilesGEN")
     # ============================================
+    # pre-train parameters
     parser.add_argument("--pre_train_smiles_vae", action="store_true",
                         help="Pre-train SmilesVAE")
     parser.add_argument("--test_smiles_vae", action="store_true",
@@ -36,12 +60,12 @@ if __name__ == '__main__':
                         help="Number of training epochs for SmilesVAE")
     parser.add_argument("--emb_size", type=int, default=128,
                         help="Embedding size for SmilesVAE")
-    parser.add_argument("--hidden_size", type=int, default=192,
-                        help="Hidden layer size for SmilesVAE")
+    parser.add_argument("--hidden_size", type=int, default=256,
+                        help="Hidden layer size for SmilesVAE")# 192
     parser.add_argument("--num_layers", type=int, default=3,
                         help="Number of training layers for SmilesVAE")
     parser.add_argument('--latent_size', type=int, default=64,
-                        help='Latent vector dimension of SmilesVAE', )  # MCF7: 64
+                        help='Latent vector dimension of SmilesVAE', )
     parser.add_argument("--pre_train_smiles_lr", type=float, default=lr_lst[0],
                         help="Learning rate for Pre-Train SmilesVAE")
     parser.add_argument('--bidirectional', type=bool, default='True',
@@ -65,27 +89,28 @@ if __name__ == '__main__':
                         help='Path to save the results of pre-trained SmilesVAE')
     parser.add_argument('--variant', action='store_true',
                         help='Apply variant smiles')
-
     # ===========================
+    # train SmilesGEN
     parser.add_argument('--train', action='store_true',
                         help='Train GeneVAE')
     parser.add_argument('--test_gene_vae', action='store_true',
                         help='Validate GeneVAE')
     parser.add_argument('--generation', action='store_true',
                         help='Validate GeneVAE')
+
     parser.add_argument('--train_epochs', type=int, default=epoch_lst[1],
                         help='GeneVAE training epochs')
     parser.add_argument('--gene_num', type=int, default=978,
-                        help='Number of gene values')  # MCF7: 978
-    parser.add_argument('--gene_hidden_sizes', type=int, default=[512, 256, 192],
-                        help='Hidden layer sizes of GeneVAE')  # MCF7: [512, 256, 128, 100]
+                        help='Number of gene values')
+    parser.add_argument('--gene_hidden_sizes', type=int, default=[512, 256, 128],
+                        help='Hidden layer sizes of GeneVAE')  # MCF7: [512, 256, 128, 100] 192
     parser.add_argument('--gene_lr', type=float, default=lr_lst[2],
                         help='Learning rate of GeneVAE')  # MCF7: 1e-4
     parser.add_argument('--gene_batch_size', type=int, default=64,
                         help='Batch size for training GeneVAE')  # 64
     parser.add_argument('--gene_dropout', type=float, default=0.2,
                         help='Dropout probability')
-    parser.add_argument('--gene_expression_file_path', type=str, default='datasets/LINCS/',
+    parser.add_argument('--gene_expression_file_path', type=str, default=f'datasets/LINCS/{cell_name}/',
                         help='Path of the training gene expression profile dataset for the VAE')
     parser.add_argument('--test_gene_data', type=str, default='datasets/test_protein/',
                         help='Path of the gene expression profile dataset for test proteins or test disease')
@@ -113,8 +138,10 @@ if __name__ == '__main__':
                         help='Save the trained SmilesVAE', )
 
     # ===========================
+    # Molecule selection with similar ligands
     parser.add_argument('--calculate_tanimoto', action='store_true',
                         help='Calculate tanimoto similarity for the source ligand and generated SMILES')
+    # Add --calculate_tanimoto to calculate Tanimoto similarity
     parser.add_argument('--candidate_num', type=int, default=50,
                         help='Number of candidate SMILES strings')
     parser.add_argument('--gene_type', type=str, default='gene_symbol',
@@ -130,15 +157,21 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.use_seed:
-        rng = set_seed(888)
+        rng = set_seed(42)
     tokenizer = vocabulary(args)
     tokenizer.build_vocab()
+
+    pre_train_dataLoder, pre_valid_dataLoder = pre_load_smiles_data(
+        tokenizer,
+        args.gene_expression_file_path, args.cell_name,
+        args.gene_num, args.gene_batch_size,
+        0.9, args.variant)
 
     train_dataLoder, valid_dataLoder = load_smiles_data(
         tokenizer,
         args.gene_expression_file_path, args.cell_name,
         args.gene_num, args.gene_batch_size,
-        args.train_rate, args.variant)
+        0.8, args.variant)
 
     device = get_device()
 
@@ -153,37 +186,38 @@ if __name__ == '__main__':
         args.latent_size, args.gene_num,
         nn.ReLU(), args.gene_dropout).to(device)
     # ========================================================= #
-    #                1.SmilesNET                                #
+    #                1.pre-train SmilesVAE                      #
     # ========================================================= #
     if args.pre_train_smiles_vae:
         show_smiles_vae_hyperparamaters(args)
-        print("Pretrain SmilesNET...")
-
+        print("Pre train SmilesVAE...")
         smile_vae_optimizer = create_optimizer(smiles_vae, args.pre_train_smiles_lr)
         trainer = Trainer(
             args.model, smiles_vae, gene_vae, smile_vae_optimizer, None, device)
         # Pre-Train SmilesVAE
-        # 预训练,传入参数:训练和验证,词汇处理器,结果,轮次,温度,最大长度,预训练valid文件,预训练final文件,保存预训练模型
+
         trainer.pre_train_smiles_vae(
-            train_dataLoder, valid_dataLoder, tokenizer,
+            pre_train_dataLoder, pre_valid_dataLoder, tokenizer,
             args.smiles_vae_pre_train_results,
             args.smiles_epochs, args.temperature, args.max_len,
             args.pre_train_valid_smiles_file, args.pre_train_final_smiles_file, args.saved_pre_smiles_vae)
     # ========================================================= #
-    #                2. SmilesGEN                               #
+    #                2. train whole mode                        #
     # ========================================================= #
     if args.train:
         show_smiles_vae_hyperparamaters(args)
         show_gene_vae_hyperparamaters(args)
 
-        print("Train SmilesGEN...")
-
+        print("train SmilesGEN...")
+        smile_vae_optimizer = create_optimizer(smiles_vae, args.smiles_lr)
         encoder_params = list(smiles_vae.encoder.parameters())
         decoder_params = list(smiles_vae.decoder.parameters())
         for param in encoder_params:
             param.requires_grad = False
-        smile_vae_optimizer = torch.optim.Adam(decoder_params, lr=args.smiles_lr)
+
+
         gene_vae_optimizer = create_optimizer(gene_vae, args.gene_lr)
+
 
         smiles_vae.load_model(args.saved_pre_smiles_vae + "_" + args.model + ".pkl")
 
@@ -197,14 +231,20 @@ if __name__ == '__main__':
             args.max_len,
             args.valid_smiles_file, args.smiles_vae_train_results,
             args.saved_smiles_vae, args.saved_gene_vae, args.cell_name)
-    # ========================================================= #
 
+    if os.path.exists(args.saved_gene_vae+'_'+args.cell_name+'_'+args.model+'.pkl'):
+        print("SmilesGEN model test...")
+        gene_vae.load_model(args.saved_gene_vae + '_' + args.cell_name + "_" + args.model + '.pkl')
+        smiles_vae.load_model(args.saved_smiles_vae + "_" + args.model + ".pkl")
+        show_all_gene_densities(args, gene_vae,smiles_vae,tokenizer)
+        print('Gene expression profile distribution is created.')
     # ========================================================= #
     #                3. Generation                              #
     # ========================================================= #
-    if args.generation:
-        print("Generate SMILES...")
 
+
+    if args.generation:
+        print("generation...")
         smiles_vae.load_model(args.saved_smiles_vae + "_" + args.model + ".pkl")
         gene_vae.load_model(args.saved_gene_vae + '_' + args.cell_name + "_" + args.model + '.pkl')
 
@@ -220,7 +260,7 @@ if __name__ == '__main__':
     #                4. Tanimoto                                #
     # ========================================================= #
     if args.calculate_tanimoto:
-        print("Evaluate Tanimoto Similarity.")
+        print("Tanimoto test.")
         evaluation(
             args.model,
             args.gene_expression_file_path, args.cell_name,
@@ -228,3 +268,4 @@ if __name__ == '__main__':
             args.source_path, args.protein_name,
             args.gen_path, args.candidate_num,
             args.mol_figure_path)
+

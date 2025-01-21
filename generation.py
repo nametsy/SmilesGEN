@@ -14,12 +14,19 @@ def generation(model: str,
     res_smiles = []
     for _, genes in enumerate(test_gene_loader):
         genes = genes.to(device)
+        if protein_name not in ["AKT1", "AKT2", "AURKB", "CTSK", "EGFR", "HDAC1", "MTOR", "PIK3CA", "SMAD3", "TP53"]:
+            genes = genes * -1
         gene_latent_vectors = gene_vae.encode(genes)
+
+
+
         if genes.size(0) != 1:
-            rand_z = torch.randn(genes.size(0), latent_size).to(device)  # [batch_size, latent_size]
+            rand_z = torch.randn(genes.size(0), latent_size).to(device)
         else:
-            rand_z = torch.randn(candidate_num, latent_size).to(device)  # [candidate_num, latent_size]
+            rand_z = torch.randn(candidate_num, latent_size).to(device)
             gene_latent_vectors = gene_latent_vectors.repeat(candidate_num, 1)
+
+
         dec_sampled_char = smiles_vae.generation(rand_z, max_len, tokenizer, gene_latent_vectors)
 
         output_smiles = ["".join(tokenizer.decode(

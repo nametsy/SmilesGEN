@@ -1,3 +1,4 @@
+import json
 import os
 
 import numpy as np
@@ -8,6 +9,7 @@ from tqdm import tqdm
 from utils import mean_similarity
 
 from rdkit import rdBase
+import matplotlib.pyplot as plt
 
 rdBase.DisableLog('rdApp.warning')
 rdBase.DisableLog('rdApp.error')
@@ -37,6 +39,7 @@ class Trainer:
         os.makedirs(saved_model_file_dir, exist_ok=True)
 
         with open(smiles_vae_pre_train_results + "_" + self.model + ".csv", 'a+') as wf:
+            # wf.truncate(0)
             wf.write("================================================\n")
             wf.write(
                 '{},{},{},{},{},{},{},{},{}\n'.format(
@@ -53,21 +56,25 @@ class Trainer:
             )
         print('\n')
         print('Pre Training Information:')
+
         for epoch in range(smiles_epochs):
             total_joint_loss = 0
             total_rec_loss = 0
             total_kld_loss = 0
             self.smiles_vae.train()
-            for _, (smiles, _, _) in tqdm(enumerate(train_smile_dataloader), total=len(train_smile_dataloader),
-                                          desc='Epoch {:d} / {:d}'.format(epoch + 1, smiles_epochs)):
+
+            for _, smiles in tqdm(enumerate(train_smile_dataloader), total=len(train_smile_dataloader),
+                                  desc='Epoch {:d} / {:d}'.format(epoch + 1, smiles_epochs)):
                 smiles = smiles.to(self.device)
-                _,decoded = self.smiles_vae(smiles, None, temperature)
+
+                _, decoded = self.smiles_vae(smiles, None, temperature)
                 alphas = (torch.cat([torch.linspace(0.99, 0.5, int(smiles_epochs * 0.8)),
                                      0.5 * torch.ones(smiles_epochs - int(smiles_epochs * 0.8)), ]).double().to(
                     self.device))
 
                 joint_loss, rec_loss, kld_loss = self.smiles_vae.joint_loss(
                     decoded, targets=smiles, alpha=alphas[epoch], beta=1.0)
+
                 self.smile_vae_optimizer.zero_grad()
                 joint_loss.backward()
                 self.smile_vae_optimizer.step()
@@ -85,11 +92,11 @@ class Trainer:
             label_smiles = []
             total_num_data = len(valid_smile_dataloader.dataset)
 
-            for _, (smiles, _, _) in enumerate(valid_smile_dataloader):
+            for _, smiles in enumerate(valid_smile_dataloader):
 
                 smiles = smiles.to(self.device)
 
-                latent_smile,_,_= self.smiles_vae.encode(smiles)
+                latent_smile, _, _ = self.smiles_vae.encode(smiles)
 
                 dec_sampled_char = self.smiles_vae.generation(latent_smile, max_len, tokenizer)
 
@@ -184,71 +191,86 @@ class Trainer:
             )
         print('\n')
         print('Training Information:')
-        i = 0
+
+        with open(f'datasets/LINCS/{cell_name}/landmark_dict.json', 'r') as f:
+            files = json.load(f)
+
+        dfs = {}
+        for cell_type, file_path in files.items():
+            dfs[cell_type] = pd.read_csv(file_path, sep=',').iloc[:, 1:].values
+
+        def row_wise_scale(df):
+            row_mins = df.min(axis=1)
+            row_maxs = df.max(axis=1)
+            scaled_df = (df - row_mins[:, np.newaxis]) / (row_maxs[:, np.newaxis] - row_mins[:, np.newaxis])
+            return scaled_df
+
+        # 应用标准化
+        for cell_type, df in dfs.items():
+            # dfs[cell_type] = row_wise_scale(df)
+            dfs[cell_type] = df
+
+        gene_label = {}
+        for i, j in files.items():
+            gene_label[i] = dfs[i].mean(axis=0)
+
         for epoch in range(train_epochs):
             total_gene_joint_loss = 0
             total_gene_rec_loss = 0
             total_gene_kld_loss = 0
+
             total_pert_gene_joint_loss = 0
             total_pert_gene_rec_loss = 0
             total_pert_gene_kld_loss = 0
             total_smile_joint_loss = 0
             total_smile_rec_loss = 0
             total_smile_kld_loss = 0
+            count = 0
             self.smiles_vae.train()
 
-            # Operate on a batch of data
+            l1 = []
+            l2 = []
+            l3 = []
 
             for _, (smiles, genes, cell) in tqdm(enumerate(train_smile_dataloader), total=len(train_smile_dataloader),
                                                  desc='Epoch {:d} / {:d}'.format(epoch + 1, train_epochs)):
 
                 smiles, genes = smiles.to(self.device), genes.to(self.device)
 
-                MCF7_ctl = pd.read_csv("datasets/LINCS/landmark_ctl_MCF7.csv", sep=',', )
-                A549_ctl = pd.read_csv("datasets/LINCS/landmark_ctl_A549.csv", sep=',', )
-                HT29_ctl = pd.read_csv("datasets/LINCS/landmark_ctl_HT29.csv", sep=',', )
-                MCF7_gene = MCF7_ctl.iloc[1:, 1:].values
-                MCF7_gene = MCF7_gene.mean(axis=0)
-                A549_gene = A549_ctl.iloc[1:, 1:].values
-                A549_gene = A549_gene.mean(axis=0)
-                HT29_gene = HT29_ctl.iloc[1:, 1:].values
-                HT29_gene = HT29_gene.mean(axis=0)
                 ctr_genes = torch.zeros((genes.shape[0], genes.shape[1]), dtype=torch.float32).to(self.device)
+
                 for i, label in enumerate(cell):
-                    if label == "MCF7":
-                        ctr_genes[i] = torch.tensor(MCF7_gene, dtype=torch.float32).to(self.device)
-                    elif label == "A549":
-                        ctr_genes[i] = torch.tensor(A549_gene, dtype=torch.float32).to(self.device)
-                    elif label == "HT29":
-                        ctr_genes[i] = torch.tensor(HT29_gene, dtype=torch.float32).to(self.device)
+                    ctr_genes[i] = torch.tensor(gene_label[label], dtype=torch.float32).to(self.device)
 
-
-                smile_latent_vectors,smiles_mu,smiles_logvar = self.smiles_vae.encode(smiles)
+                smile_latent_vectors, smiles_mu, smiles_logvar = self.smiles_vae.encode(smiles)
 
                 pert_gene_latent_vectors = self.gene_vae.encode(genes)
-                gene_latent_vectors = self.gene_vae.encode(genes,smiles_mu,smiles_logvar)
-
 
                 decoded_gene_pert = self.gene_vae.decode(pert_gene_latent_vectors)
+
+                gene_latent_vectors = self.gene_vae.encode(genes, smiles_mu, smiles_logvar)
+
                 decoded_gene = self.gene_vae.decode(gene_latent_vectors)
 
                 decoded = self.smiles_vae.decode(smiles, smile_latent_vectors, pert_gene_latent_vectors, temperature)
 
-                alphas = (torch.cat([torch.linspace(0.99, 0.5, int(train_epochs / 2)),
-                                     0.5 * torch.ones(train_epochs - int(train_epochs / 2)), ]).double().to(
+                alphas = (torch.cat([torch.linspace(0.99, 0.5, int(train_epochs * 0.5)),
+                                     0.5 * torch.ones(train_epochs - int(train_epochs * 0.5)), ]).double().to(
                     self.device))
 
                 smile_joint_loss, smile_rec_loss, smile_kld_loss = (
-                    self.smiles_vae.joint_loss(decoded, targets=smiles, alpha=alphas[epoch], beta=1.0))
+                    self.smiles_vae.joint_loss(decoded, targets=smiles, alpha=0.99, beta=1.0))
 
                 gene_joint_loss, gene_rec_loss, gene_kld_loss = self.gene_vae.joint_loss(
-                    decoded_gene, targets=ctr_genes, isCtl=1,alpha=alphas[epoch], beta=1.0)
+                    decoded_gene, targets=ctr_genes, isCtl=1, alpha=alphas[epoch], beta=1.0)
 
                 pert_gene_joint_loss, pert_gene_rec_loss, pert_gene_kld_loss = self.gene_vae.joint_loss(
-                    decoded_gene_pert, targets=genes, isCtl=0,alpha=alphas[epoch], beta=1.0)
+                    decoded_gene_pert, targets=genes, isCtl=0, alpha=alphas[epoch], beta=1.0)
 
-
-                loss = smile_rec_loss + gene_joint_loss + pert_gene_joint_loss
+                loss = gene_joint_loss + pert_gene_joint_loss + smile_rec_loss
+                l1.append(smile_rec_loss.item())
+                l2.append(gene_joint_loss.item())
+                l3.append(pert_gene_joint_loss.item())
 
                 self.smile_vae_optimizer.zero_grad()
                 self.gene_vae_optimizer.zero_grad()
@@ -261,13 +283,14 @@ class Trainer:
                 total_gene_joint_loss += gene_joint_loss.item()
                 total_gene_rec_loss += gene_rec_loss.item()
                 total_gene_kld_loss += gene_kld_loss.item()
+
                 total_smile_joint_loss += smile_joint_loss.item()
                 total_smile_rec_loss += smile_rec_loss.item()
                 total_smile_kld_loss += smile_kld_loss.item()
+
                 total_pert_gene_joint_loss += pert_gene_joint_loss.item()
                 total_pert_gene_rec_loss += pert_gene_rec_loss.item()
                 total_pert_gene_kld_loss += pert_gene_kld_loss.item()
-
 
             mean_gene_joint_loss = total_gene_joint_loss / genes.size(0)
             mean_gene_rec_loss = total_gene_rec_loss / (genes.size(0) * 978)
@@ -275,7 +298,7 @@ class Trainer:
 
             mean_pert_gene_joint_loss = total_pert_gene_joint_loss / genes.size(0)
             mean_pert_gene_rec_loss = total_pert_gene_rec_loss / (genes.size(0) * 978)
-            mean_pert_gene_kld_loss = total_pert_gene_kld_loss / (genes.size(0) *64)
+            mean_pert_gene_kld_loss = total_pert_gene_kld_loss / (genes.size(0) * 64)
 
             mean_smile_joint_loss = total_smile_joint_loss / smiles.size(0)
             mean_smile_rec_loss = total_smile_rec_loss / (smiles.size(0))
@@ -291,14 +314,9 @@ class Trainer:
             for _, (smiles, genes, _) in enumerate(valid_smile_dataloader):
 
                 smiles, genes = smiles.to(self.device), genes.to(self.device)
-                gene_info= self.gene_vae.encode(genes)
 
-                if self.model == 'RNN':
-                    rand_smile_latent = torch.randn(genes.size(0), latent_size).to(self.device)
-                elif self.model == 'Transformer':
-                    rand_smile_latent = torch.randn(genes.size(0), max_len, emb_size).to(self.device)
-                else:
-                    rand_smile_latent = torch.randn(genes.size(0), emb_size).to(self.device)
+                gene_info = self.gene_vae.encode(genes)
+                rand_smile_latent = torch.randn(genes.size(0), latent_size).to(self.device)
 
                 dec_sampled_char = self.smiles_vae.generation(rand_smile_latent, max_len, tokenizer,
                                                               gene_info)
