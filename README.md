@@ -63,6 +63,6 @@ $ python main.py --use_seed --generation --cell_name=MCF7 --protein_name=AKT1
   - **STEP 4**: Molecular Optimization
 
   ```  
-$ pythonMolecularOptimization.py --cell_name=MCF7 --protein_name=AKT1
+$ python MolecularOptimization.py --cell_name=MCF7 --protein_name=AKT1
   ```
 
