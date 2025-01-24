@@ -1,14 +1,13 @@
 # SmilesGEN：
 ## Introduction
-We propose SmilesGEN, a model that can generate drugs based on gene expression profiles.You can use this model to generate and optimize drug like molecules using the required expression profile.
-The following is a detailed introduction to the model:
+We propose SmilesGEN, a model that generates drugs based on gene expression profiles. You use this model to generate and optimize drug-like molecules using the required expression profile. The following is a detailed introduction to the model:
 ## Model Architecture
 ![](https://github.com/nametsy/SmilesGEN/blob/main/framework.png)
 
 
 ## Environment Installation
-The required packages can be viewed in the requirements.txt .
-Execute the following command to install the package:
+The required packages are listed in the requirements.txt. 
+You execute the following command to install the packages:
 
 ```
 $ pip install -r requirements.txt
@@ -16,19 +15,19 @@ $ pip install -r requirements.txt
 
 ## File Description
 
-- **datasets**:This file stores training and testing data.
+- **datasets**:This file stores the training and testing data.
 
-- **model**:The specific implementation of the model is stored here.
+- **model**:The specific implementation of the model stores here.
 
-- **results**:The training results of the model.
+- **results**:The training results of the model store here.
 
-- dataset.py: Used for dataset processing.
+- dataset.py: Use for dataset processing.
 
-- evaluation.py: Used to evaluate the model.
+- evaluation.py: Use to evaluate the model.
 
-- generation.py: Used for generating molecules.
+- generation.py: Use for generating molecules.
 
-- main.py: Model parameters, pre training, training, testing, validation code.
+- main.py: Model parameters, pre-training, training, testing, and validation code.
 
 - requirements.txt: The environment of the model.
 
@@ -39,7 +38,7 @@ $ pip install -r requirements.txt
 - trainer.py: Training code.
 
 - utils.py: Other tool codes.
-- We collected the drug-treated and baseline (untreated) expression profiles from the L1000 datase(https://clue.io/data/CMap2020#LINCS2020). Obtaining molecular data from https://pubchem.ncbi.nlm.nih.gov/.   Obtaining ligands from DTC(https://drugtargetcommons.fimm.fi/).  You can use main.py to generate Drug-like molecules.
+- We collect the drug-treated and baseline (untreated) expression profiles from the L1000 dataset (https://clue.io/data/CMap2020#LINCS2020). Obtain molecular data from https://pubchem.ncbi.nlm.nih.gov/. Obtain ligands from DTC (https://drugtargetcommons.fimm.fi/). You use main.py to generate drug-like molecules.
 
 ## Experimental Reproduction
 
