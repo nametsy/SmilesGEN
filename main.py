@@ -28,7 +28,7 @@ if __name__ == '__main__':
     epoch_lst = [100, 200]
     # python main.py --pre_train_smiles_vae --train --result_file breast_100_500_1 --cell_name breast --smiles_epochs 100 --train_epochs 500
 
-    # 训练 python main.py --pre_train_smiles_vae --train --result_file 1_MCF7 --protein_name AKT1 --cell_name MCF7 --smiles_epochs 100 --train_epochs 200
+    # python main.py --pre_train_smiles_vae --train --result_file 1_MCF7 --protein_name AKT1 --cell_name MCF7 --smiles_epochs 100 --train_epochs 200
 
     parser = argparse.ArgumentParser(description='SmilesGEN parse')
 
@@ -102,8 +102,8 @@ if __name__ == '__main__':
                         help='GeneVAE training epochs')
     parser.add_argument('--gene_num', type=int, default=978,
                         help='Number of gene values')
-    parser.add_argument('--gene_hidden_sizes', type=int, default=[512, 256, 128],
-                        help='Hidden layer sizes of GeneVAE')  # MCF7: [512, 256, 128, 100] 192
+    parser.add_argument('--gene_hidden_sizes', type=int, default=[512, 256, 192],
+                        help='Hidden layer sizes of GeneVAE')  
     parser.add_argument('--gene_lr', type=float, default=lr_lst[2],
                         help='Learning rate of GeneVAE')  # MCF7: 1e-4
     parser.add_argument('--gene_batch_size', type=int, default=64,
