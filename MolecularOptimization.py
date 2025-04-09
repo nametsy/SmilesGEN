@@ -101,8 +101,8 @@ parser.add_argument('--train_epochs', type=int, default=epoch_lst[1],
                     help='GeneVAE training epochs')
 parser.add_argument('--gene_num', type=int, default=978,
                     help='Number of gene values')
-parser.add_argument('--gene_hidden_sizes', type=int, default=[512, 256, 128],
-                    help='Hidden layer sizes of GeneVAE')  # MCF7: [512, 256, 128, 100] 192
+parser.add_argument('--gene_hidden_sizes', type=int, default=[512, 256, 192],
+                    help='Hidden layer sizes of GeneVAE')  
 parser.add_argument('--gene_lr', type=float, default=lr_lst[2],
                     help='Learning rate of GeneVAE')  # MCF7: 1e-4
 parser.add_argument('--gene_batch_size', type=int, default=64,
